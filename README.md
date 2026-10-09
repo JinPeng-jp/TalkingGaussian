@@ -1,315 +1,109 @@
-# TalkingGaussian: Structure-Persistent 3D Talking Head Synthesis via Gaussian Splatting
+# TalkingGaussian：离线复现与音频在线驱动验证台
 
-**中文版说明：**[README_CN.md](README_CN.md)（包含本仓库的离线复现、May/Macron 在线演示及实测时延说明）。
+本仓库基于论文 [TalkingGaussian: Structure-Persistent 3D Talking Head Synthesis via Gaussian Splatting](https://arxiv.org/abs/2404.15264) 的[原作者代码](https://github.com/Fictionarry/TalkingGaussian)，保留原有的嘴部、脸部、融合训练和离线渲染流程，并加入 May、Macron 两个化身的浏览器在线驱动、双模型验证、视角控制、可恢复训练及应用层时延测量。英文说明见 [README_EN.md](README_EN.md)。论文归属、引用与原作者链接见文末。
 
-This repository builds on the [original TalkingGaussian implementation](https://github.com/Fictionarry/TalkingGaussian) for the ECCV 2024 paper **TalkingGaussian: Structure-Persistent 3D Talking Head Synthesis via Gaussian Splatting**. It adds the training, rendering, and browser-based online experiments described below.
+> 这里公开的是**源码与脚本**。训练视频、预处理数据、Basel Face Model、DeepSpeech 模型、May/Macron 检查点、离线视频及本机 HTTPS 证书均不包含在 Git 仓库中。仅克隆代码不能直接启动已训练的化身；需要按下文获取数据并训练，或自行放入有使用权限的检查点。
 
-[Paper](https://arxiv.org/abs/2404.15264) | [Project](https://fictionarry.github.io/TalkingGaussian/) | [Video](https://youtu.be/c5VG7HkDs8I)
+## 1. 获取代码及环境
 
-![image](./assets/main.png)
-
-## Installation
-
-Tested on Ubuntu 18.04, CUDA 11.3, PyTorch 1.12.1
-
-```
-git clone git@github.com:Fictionarry/TalkingGaussian.git --recursive
-
-conda env create --file environment.yml
+```bash
+git clone --recurse-submodules https://github.com/JinPeng-jp/TalkingGaussian.git
+cd TalkingGaussian
+conda env create -f environment.yml
 conda activate talking_gaussian
 pip install "git+https://github.com/facebookresearch/pytorch3d.git"
 pip install tensorflow-gpu==2.8.0
 ```
 
-If encounter installation problem from the `diff-gaussian-rasterization` or `gridencoder`, please refer to [gaussian-splatting](https://github.com/graphdeco-inria/gaussian-splatting) and [torch-ngp](https://github.com/ashawkey/torch-ngp).
+原项目测试配置为 Ubuntu 18.04、CUDA 11.3、PyTorch 1.12.1；`environment.yml` 使用 Python 3.7，并包括在线服务所需的 `aiohttp`。`simple-knn` 和 `diff-gaussian-rasterization` 是 Git 子模块，所以克隆时需带 `--recurse-submodules`。如果已经普通克隆，可在项目目录执行 `git submodule update --init --recursive`。CUDA 扩展、PyTorch3D 与本机驱动版本需要匹配。
 
-### Preparation
+在线版默认把高斯渲染和 DeepSpeech 分别放在 GPU 0、GPU 1。只有一块 GPU 时，可将 `--asr_gpu cpu` 交给 `realtime_server.py`，但需要自行评估 CPU 推理能否跟上音频；启动脚本的默认双 GPU 配置并不适用于单 GPU 机器。
 
-- Prepare face-parsing model and  the 3DMM model for head pose estimation.
+## 2. 准备视频与预处理依赖
 
-  ```bash
-  bash scripts/prepare.sh
-  ```
+原作者提供的实验视频见[数据集链接](https://drive.google.com/drive/folders/1E_8W805lioIznqbkvTQHWWi5IFXUG7Er?usp=drive_link)。请遵守原视频的使用条件。训练视频放在 `data/<ID>/<ID>.mp4`，要求人物始终在画面内、25 FPS，建议约 512×512、1–5 分钟。May 与 Macron 分别使用 `data/may/may.mp4`、`data/macron/macron.mp4`。
 
-- Download 3DMM model from [Basel Face Model 2009](https://faces.dmi.unibas.ch/bfm/main.php?nav=1-1-0&id=details):
-
-  ```bash
-  # 1. copy 01_MorphableModel.mat to data_util/face_tracking/3DMM/
-  # 2. run following
-  cd data_utils/face_tracking
-  python convert_BFM.py
-  ```
-
-- Prepare the environment for [EasyPortrait](https://github.com/hukenovs/easyportrait):
-
-  ```bash
-  # prepare mmcv
-  conda activate talking_gaussian
-  pip install -U openmim
-  mim install mmcv-full==1.7.1
-
-  # download model weight
-  cd data_utils/easyportrait
-  wget "https://rndml-team-cv.obs.ru-moscow-1.hc.sbercloud.ru/datasets/easyportrait/experiments/models/fpn-fp-512.pth"
-  ```
-
-## Usage
-
-### Important Notice
-
-- This code is provided for research purposes only. The author makes no warranties, express or implied, as to the accuracy, completeness, or fitness for a particular purpose of the code. Use this code at your own risk.
-
-- The author explicitly prohibits the use of this code for any malicious or illegal activities. By using this code, you agree to comply with all applicable laws and regulations, and you agree not to use it to harm others or to perform any actions that would be considered unethical or illegal.
-
-- The author will not be responsible for any damages, losses, or issues that arise from the use of this code. 
-
-- Users are encouraged to use this code responsibly and ethically.
-
-### Video Dataset
-[Here](https://drive.google.com/drive/folders/1E_8W805lioIznqbkvTQHWWi5IFXUG7Er?usp=drive_link) we provide two video clips used in our experiments, which are captured from YouTube. Please respect the original content creators' rights and comply with YouTube’s copyright policies in the usage.
-
-Other used videos can be found from [GeneFace](https://github.com/yerfor/GeneFace) and [AD-NeRF](https://github.com/YudongGuo/AD-NeRF). 
-
-
-### Pre-processing Training Video
-
-* Put training video under `data/<ID>/<ID>.mp4`.
-
-  The video **must be 25FPS, with all frames containing the talking person**. 
-  The resolution should be about 512x512, and duration about 1-5 min.
-
-* Run script to process the video.
-
-  ```bash
-  python data_utils/process.py data/<ID>/<ID>.mp4
-  ```
-
-* Obtain Action Units
-  
-  Run `FeatureExtraction` in [OpenFace](https://github.com/TadasBaltrusaitis/OpenFace), rename and move the output CSV file to `data/<ID>/au.csv`.
-
-* Generate tooth masks
-
-  ```bash
-  export PYTHONPATH=./data_utils/easyportrait 
-  python ./data_utils/easyportrait/create_teeth_mask.py ./data/<ID>
-  ```
-
-### Audio Pre-process
-
-In our paper, we use DeepSpeech features for evaluation. 
-
-* DeepSpeech
-
-  ```bash
-  python data_utils/deepspeech_features/extract_ds_features.py --input data/<name>.wav # saved to data/<name>.npy
-  ```
-
-- HuBERT
-
-  Similar to ER-NeRF, HuBERT is also available. Recommended for situations if the audio is not in English.
-
-  Specify `--audio_extractor hubert` when training and testing.
-
-  ```
-  python data_utils/hubert.py --wav data/<name>.wav # save to data/<name>_hu.npy
-  ```
-
-### Data Loading
-
-By default, we preload all the data into RAM for acceleration, but the consumption maybe unaffordable (about N x 32GB RAM for about N x 5k frames). 
-
-(Experimental) You can try to set `preload=False` in the `scene/dataset_readers.py - readCamerasFromTransforms(·)` to load the data temporally per iteration to save the cost. As the trade-off, the speed could be slower.
-
-### Train
+运行原项目依赖准备脚本，并从 [Basel Face Model 2009](https://faces.dmi.unibas.ch/bfm/main.php?nav=1-1-0&id=details) 申请模型文件：
 
 ```bash
-# If resources are sufficient, partially parallel is available to speed up the training. See the script.
-bash scripts/train_xx.sh data/<ID> output/<project_name> <GPU_ID>
+bash scripts/prepare.sh
+# 完成许可申请后，自行复制 01_MorphableModel.mat 到：
+# data_utils/face_tracking/3DMM/01_MorphableModel.mat
+cd data_utils/face_tracking
+python convert_BFM.py
+cd ../..
 ```
 
-For the bundled Macron video, `bash scripts/run_macron_pipeline.sh` validates
-the 25 FPS source, reuses the already-extracted matching DeepSpeech features,
-preprocesses the video, extracts OpenFace AUs and teeth masks, then trains
-mouth, face, and fusion sequentially into `output/macron`. The script uses GPU
-1 by default (`MACRON_GPU_ID=0` selects GPU 0), saves resumable checkpoints
-every 2,000 mouth/face iterations and every 1,000 fusion iterations, and skips
-completed stages when rerun. Run it in a `tmux` session for unattended work;
-the current run writes `logs/macron_pipeline.log`.
-
-### Test
+还需安装 [OpenFace](https://github.com/TadasBaltrusaitis/OpenFace) 的 `FeatureExtraction`，以及牙齿掩码依赖 [EasyPortrait](https://github.com/hukenovs/easyportrait)：
 
 ```bash
-# saved to output/<project_name>/test/ours_None/renders
-python synthesize_fuse.py -S data/<ID> -M output/<project_name> --eval  
+pip install -U openmim
+mim install mmcv-full==1.7.1
+# 下载 fpn-fp-512.pth 到 data_utils/easyportrait/
 ```
 
-### Novel-view Rendering
+权重下载链接和详细依赖见[英文说明](README_EN.md#preparation)。DeepSpeech 0.1.0 冻结图默认为 `~/.tensorflow/models/deepspeech-0_1_0-b90017e8.pb`；预处理和在线服务都需要这个文件。请自行取得并放到该位置。Basel Face Model、第三方权重和数据文件不随本仓库发布。
 
-Render a fixed virtual-camera offset (angles are in degrees):
+普通视频的预处理流程：
 
 ```bash
-python synthesize_novel_view.py -s data/<ID> -m output/<project_name> \
+python data_utils/process.py data/<ID>/<ID>.mp4
+FeatureExtraction -f data/<ID>/<ID>.mp4 -out_dir data/<ID>/openface -aus -q
+# 将输出 CSV 复制为 data/<ID>/au.csv，并核对行数与帧数相同。
+PYTHONPATH=./data_utils/easyportrait \
+  python data_utils/easyportrait/create_teeth_mask.py data/<ID>
+```
+
+`process.py` 默认用 DeepSpeech 提取音频特征，并产生图像、人脸分割、跟踪、相机参数等训练文件。运行前请确认 OpenFace、3DMM、脸部解析权重及 DeepSpeech 图都已准备好。Macron 的 `scripts/run_macron_pipeline.sh` 是**针对本实验现有目录结构**的自动脚本：它要求 `data/macron/macron.mp4` 和对应的 `data/custom_audio/macron/macron_16k_mono.wav`、`macron_ds_25fps.npy` 已存在；不会从本仓库下载这些受版权约束的文件。
+
+## 3. 可恢复训练与离线验证
+
+对已经预处理好的数据，依次训练嘴部、脸部和融合模型：
+
+```bash
+# 第三个参数为 GPU 编号；例子使用 GPU 0。
+bash scripts/train_mouth_resumable.sh data/may output/may 0
+bash scripts/train_face_resumable.sh  data/may output/may 0
+bash scripts/train_fuse_resumable.sh  data/may output/may 0
+
+python synthesize_fuse.py -s data/may -m output/may --eval \
+  --audio_extractor deepspeech
+python scripts/mux_validation_audio.py may
+```
+
+这三个包装脚本会查找已有检查点并续训；嘴部和脸部每 2,000 次迭代保存检查点，融合阶段每 1,000 次保存一次。服务器长时间训练建议放进 `tmux`。原作者的一键脚本 `bash scripts/train_xx.sh data/<ID> output/<项目名> <GPU_ID>` 也保留，但自动续训请使用上面的脚本。Macron 的实验专用流水线可在准备好相应输入后执行 `bash scripts/run_macron_pipeline.sh`，默认使用 GPU 1，可用 `MACRON_GPU_ID=0` 调整。
+
+离线结果默认写入 `output/<项目名>/test/ours_None/renders/out.mp4`；配音视频由 `scripts/mux_validation_audio.py` 生成 `out_with_audio.mp4`。离线视频有 25 FPS 的播放帧率；推理过程的“每秒处理帧数”是另一项指标。
+
+不同视角渲染的例子：
+
+```bash
+python synthesize_novel_view.py -s data/may -m output/may \
   --view_mode fixed --yaw 10 --pitch 0 \
-  --output output/<project_name>/novel_view/fixed_yaw_10.mp4
+  --output output/may/novel_view/fixed_yaw_10.mp4
 ```
 
-Switch among several viewpoints and optionally mux the corresponding source
-audio into a second `*_with_audio.mp4` file:
+单目训练视频只覆盖有限视角；偏离训练视角较大时画质可能下降。`synthesize_novel_view.py` 还支持 `switch`、`sweep` 模式，详见[英文说明](README_EN.md#novel-view-rendering)。
 
-```bash
-python synthesize_novel_view.py -s data/<ID> -m output/<project_name> \
-  --view_mode switch --yaw_sequence=-15,-10,-5,0,5,10,15 \
-  --hold_frames 25 --draw_label --with_audio \
-  --output output/<project_name>/novel_view/view_switch.mp4
-```
+## 4. 在线验证台
 
-Render a smooth left-right camera sweep:
+在线流程为：浏览器麦克风或验证音频 → Web Audio 按块采样 → 16 kHz PCM → 音频 WebSocket → 独立 DeepSpeech 进程 → 高斯渲染 → 视频 WebSocket → 浏览器 Canvas。May 和 Macron 切换的是各自训练好的模型；当前两套检查点都使用旧版英语 DeepSpeech 特征，不保证中文语音的口型准确性。
 
-```bash
-python synthesize_novel_view.py -s data/<ID> -m output/<project_name> \
-  --view_mode sweep --yaw_amplitude 15 --with_audio \
-  --output output/<project_name>/novel_view/view_sweep.mp4
-```
-
-Monocular training videos only supervise a limited range of viewpoints. Keep
-novel yaw/pitch offsets close to the poses observed in the training video.
-
-### Realtime Browser Inference (May and Macron Checkpoints)
-
-The realtime path keeps both `output/may/chkpnt_fuse_latest.pth` and
-`output/macron/chkpnt_fuse_latest.pth` unchanged. Both renderers are loaded at
-startup; the page switches the active model without restarting DeepSpeech.
-A browser sends 16 kHz mono microphone PCM over a
-WebSocket; a separate TensorFlow process extracts rolling DeepSpeech features,
-and the persistent PyTorch renderer targets 25 FPS avatar frames by default,
-matching the checkpoints' DeepSpeech feature time base. Offline videos
-are also written at 25 FPS; a higher offline processing FPS is render throughput,
-not the encoded video's playback rate. The page reports server render FPS,
-browser-displayed FPS, and estimated render capacity separately. The page
-receives JPEG frames over a bounded, latest-frame WebSocket video stream to
-avoid per-frame HTTP round trips and unbounded video backlog. If the video
-WebSocket disconnects, it temporarily polls `/frame.jpg` instead. The page
-also provides live yaw, pitch, and zoom controls; the legacy `/video.mjpg`
-stream remains available for external tools.
-Increasing `--fps` only refreshes the display more often; it does not add new
-audio-driven mouth-motion information beyond the 25 FPS feature time base.
-
-This setup uses GPU 0 for Gaussian rendering and GPU 1 for the legacy
-DeepSpeech graph. Start it in a `tmux` session from the activated environment:
+在线服务需要 `output/may/chkpnt_fuse_latest.pth`、`output/macron/chkpnt_fuse_latest.pth`，两套对应的 `data/<ID>/` 预处理结果，以及上述 DeepSpeech 冻结图。默认渲染使用 GPU 0，DeepSpeech 使用 GPU 1。对只有本机访问需求的环境，可先关闭 HTTPS，在本机启动：
 
 ```bash
 conda activate talking_gaussian
-tmux new -s tg_dual_realtime
-bash scripts/run_realtime_dual.sh
+TG_HOST=127.0.0.1 TG_HTTPS_PORT=0 bash scripts/run_realtime_dual.sh
+# 浏览器打开 http://127.0.0.1:8080/
 ```
 
-The DeepSpeech graph defaults to
-`~/.tensorflow/models/deepspeech-0_1_0-b90017e8.pb`. Use
-`--deepspeech_model /path/to/model.pb` if it is stored elsewhere. Wait until
-`/api/status` reports both `state: ready` and `asr.type: asr_ready` before
-speaking.
+`run_realtime_dual.sh` 的默认监听地址是原实验服务器的校园网 IP `192.168.167.5`，默认还会启用 8443 HTTPS。因此在别的机器上请显式设置 `TG_HOST`，并根据是否配置证书设置 `TG_HTTPS_PORT`。物理麦克风通常要求浏览器安全上下文：本机 `localhost` 可直接使用；其他电脑访问需要可信 HTTPS，或把服务器 8080 端口用 SSH 隧道转发为本机 `localhost`。证书和密钥属于部署环境，不在仓库里。双模型服务面向单人操作，模型、视角和音频输入对所有浏览者共享。
 
-On this server the launcher binds to the campus interface
-`192.168.167.5:8080` by default.  Users connected to the campus network can
-open:
+网页同时提供：May/Macron 模拟麦克风验证音频、各自离线配音视频、实时帧率与队列信息、视角和动作参数，以及逐帧时延统计。验证音频沿真实在线音频管线运行，不使用预提取特征直接驱动画面；离线视频来自各自检查点的离线验证渲染，需要先按上节生成。
 
-```text
-http://192.168.167.5:8080/
-```
+时延大数字追踪**本页面**中一个特征对应音频块的回调，到该帧提交 Canvas 的耗时；可导出每帧原始时间戳和中位数、P95。它不包含麦克风回调前缓冲和屏幕扫描，也不等于物理音画同步误差。其他浏览者没有同一浏览器的音频时间戳，因此不会显示伪造的端到端数值。精确定义、测试与协议见[时延测量文档](realtime/LATENCY_MEASUREMENT.md)。
 
-This is one shared research session: avatar changes, camera controls, and audio
-input affect every connected viewer.  The campus HTTP origin supports viewing
-and the built-in May/Macron validation-audio path, but browsers do not grant
-physical microphone access to non-HTTPS remote origins.  For microphone use,
-download the dedicated campus-demo CA certificate from
-`http://192.168.167.5:8080/campus-ca.crt`, install it for the current user as a
-trusted certificate authority, restart the browser, and open:
-
-```text
-https://192.168.167.5:8443/
-```
-
-The HTTPS leaf certificate is valid for the IP address `192.168.167.5`; its
-dedicated CA private key was deleted after signing.  The page displays the CA
-SHA-256 fingerprint and per-platform installation guidance.  Remove this CA
-from the client's trust store after the demo if it is no longer needed.
-
-For physical microphone access, create an SSH tunnel on the computer running
-the browser:
-
-```bash
-ssh -L 8080:192.168.167.5:8080 <user>@192.168.167.5
-```
-
-The page shows whether the video link is using WebSocket or HTTP fallback.
-If a forwarding tool does not support WebSocket upgrades, use the SSH tunnel
-above and reload the page.
-
-Then open `http://127.0.0.1:8080` and click **Start microphone**. Localhost is a
-browser secure context, so microphone access works without exposing the
-research server beyond the campus interface.  To run a private localhost-only
-instance instead, set `TG_HOST=127.0.0.1` before launching the script; `TG_PORT`
-and `TG_HTTPS_PORT` override ports 8080 and 8443. The first motion needs about one second
-of audio; steady-state DeepSpeech context is approximately 480 ms, plus
-network, rendering, and display delay. Realtime mode fixes the upper-face AU
-instead of cycling unrelated validation expressions, so the avatar remains
-still while there is no audio drive. The page can play the local microphone
-through a configurable delay for lip-sync inspection. Automatic mode uses the
-previous run's measured application-layer median (initial setting: 570 ms),
-and locks that setting throughout playback to avoid pitch-shift artifacts.
-This setting is not a measured audiovisual synchronization error. Use headphones
-to prevent feedback; the delay slider can also be adjusted manually.
-
-The latency panel now traces the actual source audio packet through rolling
-DeepSpeech, rendering, video delivery and a browser rAF Canvas submission. Its
-total uses two timestamps from the same browser monotonic clock, not a sum of
-theoretical context, half-frame waits or RTT/2 estimates. It includes per-frame
-measured stages, startup time, median/P95/max and a raw JSON export. Only the
-audio-originating page computes this total; other viewers show no invented
-cross-clock delay. It excludes pre-callback audio buffering and physical screen
-presentation. See [latency measurement definitions and tests](realtime/LATENCY_MEASUREMENT.md).
-
-Select **May** or **Macron** at the top of the page. For an in-distribution
-check, **Validation audio · simulated microphone** plays the selected
-validation WAV into the same Web Audio processor used by `getUserMedia`:
-browser audio-clock samples -> 16 kHz conversion -> PCM WebSocket -> rolling
-DeepSpeech -> renderer. There is no separate timer-paced PCM sender or direct
-feature injection. Only the source node differs from the physical microphone;
-this does not create an operating-system virtual microphone device. May uses
-220.8--242.92 s (553 validation frames); Macron uses 317.52--349.28 s
-(794 frames). Switching avatars stops the previous input and immediately
-re-enables both online input buttons without reloading the page.
-
-The page also embeds both offline validation renders with their aligned source
-audio: `output/may/test/ours_None/renders/out_with_audio.mp4` and
-`output/macron/test/ours_None/renders/out_with_audio.mp4`. To create a missing
-version, run `python scripts/mux_validation_audio.py may` or `... macron`.
-These are validation segments, not the full source videos. The browser video
-players support seeking via HTTP range requests.
-
-The old DeepSpeech graph has bidirectional context and global MFCC
-normalization. One-second rolling inference cannot reproduce the features from
-the full 243-second May audio exactly; on sampled May timestamps, the mean
-absolute feature difference was about 1.5--5.0. The old saved-feature
-reference button was useful only for diagnosing this extractor mismatch, so it
-is no longer shown in the browser. The backend diagnostic command remains
-available for experiments; it is not evidence of live lip-sync accuracy.
-
-The dashboard reports audio/video payload totals and rates, client counts,
-render FPS, audio RMS, speech activity, natural-motion strength, DeepSpeech
-feature variation, queue depth, dropped features, camera controls, and the age
-of the latest displayed frame and audio-feature queue. A growing age points to
-delivery lag. Natural upper-face/pose motion is gated by speech energy: it is
-completely static when
-idle and smoothly replays low-amplitude motion from the selected model's validation sequence
-while speaking. This motion is for visual naturalness and is not phoneme
-conditioned. Feature variation is a driver diagnostic, not a lip-sync accuracy
-metric. The preserved checkpoint uses legacy English DeepSpeech features, so
-Chinese phoneme-to-viseme generalization is not guaranteed.
-
-An end-to-end file-paced test is available without a physical server
-microphone:
+命令行链路检查（裸 PCM 旧客户端同样兼容）：
 
 ```bash
 python scripts/test_realtime_file.py \
@@ -318,25 +112,20 @@ python scripts/test_realtime_file.py \
   --output_frame output/may/realtime/file_test_frame.jpg
 ```
 
-For Macron, select it through `POST /api/avatar` with
-`{"avatar":"macron"}` and use `data/macron/aud.wav --start 317.52` in the test
-command. Both models were trained from monocular videos, so keep live view
-offsets modest (the UI limits them by default).
+## 5. 仓库内容与引用
 
-### Inference with Specified Audio
+| 路径 | 作用 |
+| --- | --- |
+| `train_mouth.py`、`train_face.py`、`train_fuse.py` | 原有三阶段训练，加入按间隔保存与续训支持 |
+| `synthesize_fuse.py`、`synthesize_novel_view.py` | 离线验证和视角渲染 |
+| `realtime_server.py`、`realtime/` | 在线服务、DeepSpeech worker、帧追踪与浏览器页面 |
+| `scripts/` | 数据检查、训练、音频混流和回归测试脚本 |
+| `data/`、`output/` | 本地数据和检查点目录，内容不提交到 GitHub |
+| `submodules/` | 两个上游 CUDA 扩展的 Git 子模块 |
 
-```bash
-python synthesize_fuse.py -S data/<ID> -M output/<project_name> --use_train --audio <preprocessed_audio_feature>.npy
-```
+论文：Li et al., *TalkingGaussian: Structure-Persistent 3D Talking Head Synthesis via Gaussian Splatting*, ECCV 2024。请引用原论文并保留原作者归属：
 
-## Follow-Up 
-- [2025/02/28] Our work [InsTaG](https://fictionarry.github.io/InsTaG/) at CVPR 2025 is released! 🔥
-
-## Citation
-
-Consider citing as below if you find this repository helpful to your project:
-
-```
+```bibtex
 @inproceedings{li2024talkinggaussian,
   title={TalkingGaussian: Structure-Persistent 3D Talking Head Synthesis via Gaussian Splatting},
   author={Li, Jiahe and Zhang, Jiawei and Bai, Xiao and Zheng, Jin and Ning, Xin and Zhou, Jun and Gu, Lin},
@@ -347,7 +136,4 @@ Consider citing as below if you find this repository helpful to your project:
 }
 ```
 
-
-## Acknowledgement
-
-This code is developed on [gaussian-splatting](https://github.com/graphdeco-inria/gaussian-splatting) with [simple-knn](https://gitlab.inria.fr/bkerbl/simple-knn), and a modified [diff-gaussian-rasterization](https://github.com/ashawkey/diff-gaussian-rasterization). Partial codes are from [RAD-NeRF](https://github.com/ashawkey/RAD-NeRF), [DFRF](https://github.com/sstzal/DFRF), [GeneFace](https://github.com/yerfor/GeneFace), and [AD-NeRF](https://github.com/YudongGuo/AD-NeRF). Teeth mask is from [EasyPortrait](https://github.com/hukenovs/easyportrait). Thanks for these great projects!
+本仓库延续原作者的研究用途说明；请遵守数据、Basel Face Model、OpenFace、第三方权重及上游子模块各自的使用条件。
