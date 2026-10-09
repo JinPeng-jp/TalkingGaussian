@@ -1,0 +1,984 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>TalkingGaussian · May / Macron 验证台</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; --bg: #080e15; --surface: #111c27; --surface2: #172430; --line: #2a3b49; --text: #eef5f7; --muted: #9dafba; --mint: #72e2bd; --gold: #f3c66b; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--text); background: radial-gradient(circle at 82% -10%, #244a51 0, transparent 37%), radial-gradient(circle at 0 35%, #152b37 0, transparent 42%), var(--bg); }
+    main { max-width: 1370px; margin: auto; padding: 30px clamp(18px, 3vw, 42px) 70px; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 8px; font-size: clamp(27px, 3vw, 42px); letter-spacing: -.045em; line-height: 1.12; }
+    h2 { font-size: 20px; letter-spacing: -.02em; }
+    button { font: inherit; cursor: pointer; border: 0; }
+    button:disabled { cursor: not-allowed; opacity: .4; }
+    button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--mint); outline-offset: 3px; }
+    .eyebrow { color: var(--mint); font-size: 11px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
+    .masthead { display: flex; gap: 22px; justify-content: space-between; align-items: flex-start; margin-bottom: 25px; }
+    .brand { display: flex; align-items: flex-start; gap: 16px; }
+    .brand-mark { flex: none; display: grid; place-items: center; width: 51px; height: 51px; border-radius: 15px; color: #071710; background: linear-gradient(135deg, var(--mint), #b2f8db); font-size: 21px; font-weight: 900; box-shadow: 0 12px 35px #3dd9a23b; }
+    .masthead p { margin-bottom: 0; color: var(--muted); font-size: 14px; }
+    .status-pill { flex: none; display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid #396158; border-radius: 999px; color: #acf4d7; background: #102b29; font-size: 12px; font-weight: 700; }
+    .status-pill::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 12px var(--mint); }
+    .status-pill.offline { border-color: #684445; color: #ffc4bd; background: #302022; }
+    .status-pill.offline::before { background: #ff766e; box-shadow: none; }
+    .avatar-bar { display: flex; align-items: center; gap: 18px; margin-bottom: 18px; }
+    .avatar-bar > span { color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+    .avatar-tabs { display: flex; gap: 5px; padding: 5px; border: 1px solid var(--line); border-radius: 13px; background: #101a23; }
+    .avatar-tab { min-width: 114px; padding: 10px 18px; border-radius: 9px; background: transparent; color: #a7bac3; font-weight: 750; }
+    .avatar-tab.active { color: #09221a; background: var(--mint); box-shadow: 0 5px 17px #40d5a34a; }
+    .avatar-tab:disabled { opacity: .55; }
+    .global-note { margin: 0 0 0 auto; color: var(--muted); font-size: 11px; }
+    .latency-card { display: grid; grid-template-columns: minmax(195px, 280px) 1fr; gap: 14px 24px; padding: 23px 26px; margin-bottom: 22px; border: 1px solid #3a5f5d; border-radius: 19px; background: linear-gradient(110deg, #18352f 0%, #152c32 38%, #13242e 100%); box-shadow: 0 16px 42px #0005; }
+    .latency-title { color: #aed4c9; font-size: 13px; font-weight: 700; }
+    .latency-total { color: var(--mint); margin-top: 2px; font-size: clamp(44px, 5vw, 66px); font-weight: 850; letter-spacing: -.055em; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .latency-total small { font-size: .4em; letter-spacing: 0; }
+    .latency-total.warn { color: var(--gold); }
+    .latency-total.high { color: #ff938c; }
+    .latency-state { margin-top: 8px; color: #c0d5d3; font-size: 12px; }
+    .latency-parts { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; align-content: center; }
+    .latency-part { padding: 13px 11px; border: 1px solid #ffffff12; border-radius: 11px; background: #081a2080; }
+    .latency-part span { display: block; min-height: 32px; color: #a1bcb9; font-size: 11px; line-height: 1.3; }
+    .latency-part strong { display: block; color: white; font-size: 17px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .latency-explain { grid-column: 1 / -1; margin-bottom: 0; color: #a7c3c1; font-size: 12px; line-height: 1.5; }
+    #exportLatency { justify-self: start; padding: 9px 14px; border-radius: 8px; background: #315369; color: white; font-size: 12px; }
+    .workspace { display: grid; grid-template-columns: minmax(390px, 1fr) minmax(350px, .82fr); gap: 20px; align-items: start; }
+    .viewer-card, .control-card, .telemetry-card, .offline-card { border: 1px solid var(--line); background: linear-gradient(165deg, #15232e, #101a24); border-radius: 19px; box-shadow: 0 14px 35px #0003; }
+    .viewer-card { overflow: hidden; }
+    .viewer-heading { display: flex; justify-content: space-between; align-items: center; padding: 17px 20px; }
+    .viewer-heading strong { font-size: 15px; }
+    .viewer-heading .eyebrow { font-size: 10px; }
+    .live-dot { color: var(--mint); font-size: 11px; font-weight: 800; letter-spacing: .1em; }
+    .live-dot::before { content: '●'; margin-right: 6px; }
+    .video-wrap { display: grid; place-items: center; background: radial-gradient(circle, #293e45 0, #0c151c 68%); padding: 14px; }
+    .video { display: block; width: min(100%, 620px); aspect-ratio: 1; object-fit: contain; background: #05090d; border-radius: 11px; }
+    .viewer-foot { display: flex; justify-content: space-between; gap: 10px; padding: 15px 20px; color: var(--muted); font-size: 12px; }
+    .viewer-foot strong { color: white; }
+    .control-card { padding: 23px; }
+    .control-card h2 { margin-bottom: 5px; }
+    .control-card .subtitle { color: var(--muted); font-size: 12px; line-height: 1.5; margin-bottom: 18px; }
+    .action-stack { display: grid; gap: 8px; }
+    .action-stack button { width: 100%; padding: 12px 15px; border-radius: 10px; font-weight: 780; text-align: left; transition: transform .15s, filter .15s; }
+    .action-stack button:not(:disabled):hover { transform: translateY(-2px); filter: brightness(1.08); }
+    .start { color: #081c15; background: var(--mint); }
+    .sample { color: #f6f9fb; background: #315369; }
+    .stop { color: #ffc6be; background: #442c32; }
+    .input-state { padding: 10px 12px; margin: 13px 0 0; border-radius: 9px; color: #c8dcd9; background: #0c1921; font-size: 12px; }
+    .audio-monitor { margin-top: 18px; padding: 16px; border: 1px solid #324957; border-radius: 12px; background: #0d1a24; }
+    .monitor-toggle { display: flex; gap: 8px; align-items: center; margin: 0; font-weight: 740; font-size: 13px; cursor: pointer; }
+    .monitor-toggle input { accent-color: var(--mint); }
+    .monitor-warning { margin: 8px 0 14px; color: var(--gold); font-size: 11px; line-height: 1.45; }
+    .sync-row { display: flex; align-items: center; gap: 10px; }
+    .sync-row input { flex: 1; min-width: 60px; }
+    .sync-row button { flex: none; padding: 7px 10px; border-radius: 8px; color: white; background: #344b59; font-size: 11px; }
+    .sync-mode { margin-top: 6px; color: var(--muted); font-size: 11px; }
+    .control-group { margin-top: 19px; padding-top: 16px; border-top: 1px solid var(--line); }
+    .control-group h3 { margin-bottom: 4px; color: #e9f4f3; font-size: 14px; }
+    label { display: block; margin-top: 13px; color: #bccdd3; font-size: 12px; }
+    input[type=range] { width: 100%; margin: 8px 0 0; accent-color: var(--mint); }
+    .value { float: right; color: white; font-variant-numeric: tabular-nums; }
+    .hint { margin: 13px 0 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+    .https-help { margin-top: 10px; padding: 12px 14px; border: 1px solid #4d5540; border-radius: 10px; color: #cfd9d1; background: #24271c; font-size: 11px; line-height: 1.55; }
+    .https-help summary { cursor: pointer; color: var(--gold); font-weight: 750; }
+    .https-help ol { margin: 10px 0 6px; padding-left: 20px; }
+    .https-help a { color: var(--mint); }
+    .https-help code { overflow-wrap: anywhere; color: #e8f3ef; }
+    .https-help .fingerprint { overflow-wrap: anywhere; color: #aebdb7; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .offline-section { margin-top: 37px; }
+    .section-heading { display: flex; justify-content: space-between; align-items: end; gap: 20px; margin-bottom: 16px; }
+    .section-heading h2 { margin-bottom: 4px; }
+    .section-heading p { color: var(--muted); font-size: 12px; margin-bottom: 0; }
+    .offline-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .offline-card { padding: 16px; }
+    .offline-card header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 0 2px 12px; }
+    .offline-card h3 { margin: 0; font-size: 16px; }
+    .offline-card header span { color: var(--muted); font-size: 11px; }
+    .offline-card video { display: block; width: 100%; aspect-ratio: 1; border-radius: 11px; background: #05090d; }
+    .offline-card p { margin: 12px 2px 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .telemetry-card { margin-top: 22px; padding: 19px 20px; }
+    .telemetry-card summary { cursor: pointer; font-weight: 770; font-size: 16px; }
+    .telemetry-grid { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 8px; margin-top: 16px; }
+    .telemetry-item { padding: 12px; border: 1px solid #ffffff0b; border-radius: 10px; background: #0c1720; }
+    .telemetry-item span { display: block; min-height: 30px; color: var(--muted); font-size: 11px; }
+    .telemetry-item strong { display: block; color: #f2faf9; font-size: 14px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .telemetry-note { margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .debug { margin-top: 20px; color: var(--muted); font-size: 12px; }
+    pre { white-space: pre-wrap; font-size: 11px; line-height: 1.5; color: #aeb9c7; overflow: auto; max-height: 300px; }
+    @media (max-width: 1020px) { .workspace { grid-template-columns: 1fr; } .telemetry-grid { grid-template-columns: repeat(3,minmax(0,1fr)); } }
+    @media (max-width: 700px) { main { padding: 20px 14px 48px; } .masthead { flex-direction: column; } .brand-mark { width: 43px; height: 43px; } .avatar-bar { align-items: flex-start; flex-direction: column; gap: 8px; } .global-note { margin-left: 0; } .latency-card { grid-template-columns: 1fr; padding: 18px; } .latency-parts { grid-template-columns: repeat(2,minmax(0,1fr)); } .offline-grid { grid-template-columns: 1fr; } .telemetry-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .section-heading { align-items: flex-start; flex-direction: column; gap: 5px; } }
+  </style>
+</head>
+<body>
+<main>
+  <header class="masthead">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">TG</div>
+      <div><div class="eyebrow">RESEARCH DEMO · AUDIO-DRIVEN GAUSSIANS</div>
+        <h1>TalkingGaussian 验证台</h1>
+        <p>同一套实验环境，对比 May 与 Macron 的在线驱动和离线验证。</p>
+      </div>
+    </div>
+    <div class="status-pill" id="serviceBadge">服务连接中</div>
+  </header>
+  <nav class="avatar-bar" aria-label="选择在线化身">
+    <span>当前在线模型</span>
+    <div class="avatar-tabs">
+      <button class="avatar-tab active" data-avatar="may" type="button">May</button>
+      <button class="avatar-tab" data-avatar="macron" type="button">Macron</button>
+    </div>
+    <p class="global-note">模型、视角和音频输入为全局共享；同一时间请由一人操作</p>
+  </nav>
+  <section class="latency-card" aria-label="实时延迟">
+    <div>
+      <div class="latency-title" id="latencyTitle">在线链路实测 · 音频块回调 → Canvas 提交</div>
+      <div class="latency-total" id="latencyTotal">-- <small>ms</small></div>
+      <div class="latency-state" id="latencyState">等待服务器状态……</div>
+    </div>
+    <div class="latency-parts">
+      <div class="latency-part"><span>音频到达 → 本轮 ASR 开始</span><strong id="latencyContext">--</strong></div>
+      <div class="latency-part"><span>浏览器音频回调内处理</span><strong id="latencyCapture">--</strong></div>
+      <div class="latency-part"><span>本帧最后一轮 DeepSpeech 计算</span><strong id="latencyAsr">--</strong></div>
+      <div class="latency-part"><span>ASR 完成 → 渲染开始</span><strong id="latencyFrame">--</strong></div>
+      <div class="latency-part"><span>本帧高斯渲染及 JPEG 编码</span><strong id="latencyRender">--</strong></div>
+      <div class="latency-part"><span>往返传输与调度 · 差额实测</span><strong id="latencyUplink">--</strong></div>
+      <div class="latency-part"><span>浏览器收包 → Canvas 提交</span><strong id="latencyVideo">--</strong></div>
+      <div class="latency-part"><span>渲染完成 → 发包准备</span><strong id="latencyPublish">--</strong></div>
+      <div class="latency-part"><span>状态请求往返 · 近 12 次中位数（独立）</span><strong id="latencyRtt">--</strong></div>
+      <div class="latency-part"><span>本轮首次回调 → 首个驱动画面</span><strong id="latencyFirst">--</strong></div>
+    </div>
+    <p class="latency-explain" id="latencyExplain">
+      总值使用本窗口同一单调时钟直接相减，不相加理论常数。追踪的是特征当前窗口中心所在音频块的回调，不是精确音素时间；包括该块到达后的上下文等待与排队。不包含回调前采样/设备缓冲、Canvas 提交后的屏幕扫描，也不是音画同步误差。请在本窗口启动音频；其他观看窗口不跨时钟计算总值。
+    </p>
+    <p class="latency-explain" id="latencySummary">尚无实测样本</p>
+    <button id="exportLatency" type="button" disabled>导出本轮实测 JSON</button>
+  </section>
+  <div class="workspace">
+    <section class="viewer-card" aria-label="在线渲染画面">
+      <div class="viewer-heading"><div><div class="eyebrow">LIVE PREVIEW</div><strong id="avatarTitle">May · 在线画面</strong></div><span class="live-dot">25 FPS TARGET</span></div>
+      <div class="video-wrap"><canvas class="video" id="video" width="512" height="512" role="img" aria-label="在线化身画面"></canvas></div>
+      <div class="viewer-foot"><span>当前模型 <strong id="viewerAvatar">May</strong></span><span>浏览器显示 <strong id="viewerFps">-- FPS</strong></span></div>
+    </section>
+    <section class="control-card" aria-label="在线驱动控制">
+      <h2>驱动控制</h2>
+      <p class="subtitle">先选择化身，再用麦克风或对应验证音频实时驱动。</p>
+      <div class="action-stack">
+        <button class="start" id="startMic">启动麦克风 · 实时驱动</button>
+        <button class="sample" id="startSample">验证音频 · 模拟麦克风 / 在线 DeepSpeech</button>
+        <button class="stop" id="stop" disabled>停止当前输入</button>
+      </div>
+      <p class="hint" id="microphoneAccessHint"></p>
+      <details class="https-help" id="httpsSetupHelp">
+        <summary>首次启用校园网麦克风：安装专用证书</summary>
+        <ol>
+          <li><a href="/campus-ca.crt" download>下载 TalkingGaussian 校园演示 CA 证书</a>。</li>
+          <li>将它导入当前用户的“受信任的根证书颁发机构”；Firefox/Linux 可在浏览器的“证书 → 颁发机构”中导入并信任网站身份。</li>
+          <li>关闭并重新打开浏览器，然后访问 <a id="httpsEntry" href="https://192.168.167.5:8443/">HTTPS 麦克风入口</a>。</li>
+        </ol>
+        <div>核对证书 SHA-256：</div>
+        <div class="fingerprint">36:E5:AA:F5:B4:4F:8B:64:99:80:B1:51:B2:0F:AA:38:BF:19:E6:26:C3:39:65:05:02:44:9F:69:FD:46:7E:F7</div>
+        <div>该 CA 只用于本演示；测试结束后可以从受信任证书中删除。</div>
+      </details>
+      <p class="input-state" id="inputState">当前输入：无</p>
+
+      <div class="audio-monitor">
+        <label class="monitor-toggle">
+          <input id="monitorAudio" type="checkbox" checked>
+          同步播放输入声音
+        </label>
+        <p class="monitor-warning">请佩戴耳机，避免扬声器声音被麦克风再次采集而产生回声或啸叫。</p>
+        <label>声音播放延后设置（不是实测音画同步误差） <span class="value" id="audioDelayValue">570 ms</span></label>
+        <div class="sync-row">
+          <input id="audioDelay" type="range" min="0" max="1500" step="10" value="570">
+          <button id="autoDelay" type="button">自动对齐</button>
+        </div>
+        <div class="sync-mode" id="audioDelayMode">播放期间锁定延迟，避免变速杂音</div>
+      </div>
+
+      <div class="control-group">
+        <h3>视角与自然动作</h3>
+        <label>水平视角 Yaw <span class="value" id="yawValue">0°</span><input id="yaw" type="range" min="-20" max="20" step="1" value="0"></label>
+        <label>垂直视角 Pitch <span class="value" id="pitchValue">0°</span><input id="pitch" type="range" min="-10" max="10" step="1" value="0"></label>
+        <label>缩放 <span class="value" id="zoomValue">1.00</span><input id="zoom" type="range" min="0.80" max="1.20" step="0.01" value="1.00"></label>
+        <label>眉眼 / 头部自然动作（仅说话时） <span class="value" id="expressionValue">1.00</span><input id="expressionIntensity" type="range" min="0" max="1.5" step="0.05" value="1.00"></label>
+      </div>
+      <p class="hint" id="validationHint">验证音频经浏览器逐块采样、WebSocket 和实时 DeepSpeech 驱动；不调用真实麦克风设备。</p>
+      <details class="debug"><summary>服务原始状态</summary><pre id="status">正在连接状态接口……</pre></details>
+    </section>
+  </div>
+  <section class="offline-section" aria-label="离线验证视频">
+    <div class="section-heading"><div><div class="eyebrow">OFFLINE REFERENCE</div><h2>模型离线重建 · 带原声</h2></div><p>测试集由模型重建头脸，沿用原视频对应帧的机位、躯干和背景；不是纯原视频。</p></div>
+    <div class="offline-grid">
+      <article class="offline-card"><header><h3>May · 模型重建</h3><span>553 帧 · 22.12 秒</span></header><video controls preload="metadata" playsinline src="/media/may/offline.mp4"></video><p>使用验证帧的音频特征、机位、表情与原始躯干背景；头脸由 May checkpoint 离线渲染，音轨取自原视频。</p></article>
+      <article class="offline-card"><header><h3>Macron · 模型重建</h3><span>794 帧 · 31.76 秒</span></header><video controls preload="metadata" playsinline src="/media/macron/offline.mp4"></video><p>使用验证帧的音频特征、机位、表情与原始躯干背景；头脸由 Macron checkpoint 离线渲染，音轨取自原视频。</p></article>
+    </div>
+  </section>
+  <details class="telemetry-card" open aria-label="实时运行参数">
+    <summary>实时运行与驱动参数</summary>
+    <div class="telemetry-grid">
+      <div class="telemetry-item"><span>音频上行 · 全部连接载荷</span><strong id="uplinkTraffic">0 B · 0 bit/s</strong></div>
+      <div class="telemetry-item"><span>视频下行 · 全部连接载荷</span><strong id="downlinkTraffic">0 B · 0 bit/s</strong></div>
+      <div class="telemetry-item"><span>连接数</span><strong id="clientCounts">音频 0 · 视频 0</strong></div>
+      <div class="telemetry-item"><span>在线输入源</span><strong id="inputSource">无</strong></div>
+      <div class="telemetry-item"><span>音频特征路径</span><strong id="featureMode">--</strong></div>
+      <div class="telemetry-item"><span>服务端渲染 / 目标</span><strong id="renderFps">-- FPS</strong></div>
+      <div class="telemetry-item"><span>浏览器可见帧率 · rAF 采样</span><strong id="displayFps">-- FPS</strong></div>
+      <div class="telemetry-item"><span>视频传输方式</span><strong id="videoTransport">连接中</strong></div>
+      <div class="telemetry-item"><span>JPEG 解码耗时</span><strong id="videoDecodeMs">-- ms</strong></div>
+      <div class="telemetry-item"><span>渲染吞吐上限（估算）</span><strong id="renderCapacityFps">-- FPS</strong></div>
+      <div class="telemetry-item"><span>音频特征时间基准</span><strong id="audioFeatureFps">25 FPS</strong></div>
+      <div class="telemetry-item"><span>距最近 Canvas 提交 · 本机实测</span><strong id="videoFrameAge">-- ms</strong></div>
+      <div class="telemetry-item"><span>当前特征距生成时间 · 渲染端</span><strong id="featureFrameAge">-- ms</strong></div>
+      <div class="telemetry-item"><span>语音 RMS / 阈值</span><strong id="audioRms">--</strong></div>
+      <div class="telemetry-item"><span>语音状态</span><strong id="speechState">未连接</strong></div>
+      <div class="telemetry-item"><span>自然动作强度</span><strong id="motionStrength">0%</strong></div>
+      <div class="telemetry-item"><span>DeepSpeech 特征变化</span><strong id="featureDelta">--</strong></div>
+      <div class="telemetry-item"><span>本次 / 最近特征帧数</span><strong id="featureFrames">0</strong></div>
+      <div class="telemetry-item"><span>队列近似（音频 / 特征）</span><strong id="queueDepth">0 / 0</strong></div>
+      <div class="telemetry-item"><span>渲染端累计丢弃特征</span><strong id="droppedFeatures">0</strong></div>
+      <div class="telemetry-item"><span>视角 / 动作系数</span><strong id="driveParams">--</strong></div>
+    </div>
+    <p class="telemetry-note">传输累计量自服务启动、合计所有连接；速率取最近约 2 秒。只计服务端收发的应用载荷，不含 WebSocket/TCP 封装。“渲染端丢弃”不含 ASR 进程内部队列；“特征变化”不代表口型准确率。两套模型均使用旧版英语 DeepSpeech 训练。</p>
+  </details>
+</main>
+<script src="/latency_metrics.js"></script>
+<script>
+let socket = null;
+let mediaStream = null;
+let audioContext = null;
+let processor = null;
+let sourceNode = null;
+let sampleGainNode = null;
+let monitorDelayNode = null;
+let monitorGainNode = null;
+let latestMeasuredLatencyMs = null;
+let traceSession = null;
+let audioPacketSeq = 0;
+let firstCaptureMs = null;
+let firstDrivenFrameMs = null;
+let latestMeasurement = null;
+let measuredSamples = [];
+let measuredCount = 0;
+let measurementAvatar = null;
+let lastMeasuredFeature = -1;
+let lastCanvasSubmitMs = null;
+let visibilityRevision = 0;
+let automaticAudioDelay = true;
+let currentMonitorDelayMs = 570;
+let inputMode = 'none';
+let latestStatus = {};
+let selectedAvatar = 'may';
+let avatarChangeBusy = false;
+let avatarSelectionRevision = 0;
+let sampleStopTimer = null;
+let videoFrameAgeMs = 0;
+const presentedFrameTimes = [];
+let framePaintSequence = 0;
+let lastCountedPaintSequence = 0;
+let videoSocket = null;
+let videoTransport = 'HTTP 备用';
+let videoDecodeMs = 0;
+let videoWindowSize = 4;
+let staleVideoPackets = 0;
+let freshVideoPackets = 0;
+let lastPresentedAt = 0;
+let latestWebSocketFrame = null;
+let paintingWebSocketFrame = false;
+let serverClockOffsetMs = 0;
+const clockOffsetSamples = [];
+const videoClientId = `tg-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+function avatarLabel() { return selectedAvatar === 'macron' ? 'Macron' : 'May'; }
+
+function renderAvatarUi() {
+  const label = avatarLabel();
+  document.querySelectorAll('.avatar-tab').forEach(button => {
+    button.classList.toggle('active', button.dataset.avatar === selectedAvatar);
+    button.disabled = avatarChangeBusy;
+  });
+  document.getElementById('avatarTitle').textContent = `${label} · 在线画面`;
+  document.getElementById('viewerAvatar').textContent = label;
+  document.getElementById('startSample').textContent = `${label} 验证音频 · 模拟麦克风 / 在线 DeepSpeech`;
+  const count = numberOr(latestStatus.validation_frames, selectedAvatar === 'may' ? 553 : 794);
+  const start = numberOr(latestStatus.audio_start, selectedAvatar === 'may' ? 220.8 : 317.52);
+  const duration = numberOr(latestStatus.audio_duration, selectedAvatar === 'may' ? 22.12 : 31.76);
+  document.getElementById('validationHint').textContent =
+    `${label} 验证音频 ${start.toFixed(2)}–${(start + duration).toFixed(2)} 秒，共 ${count} 帧。浏览器逐块采样后送入 16 kHz 转换、WebSocket → DeepSpeech 实时链路；不调用真实麦克风设备，也不注入预提取特征。`;
+}
+
+async function selectAvatar(avatar) {
+  if (avatarChangeBusy || avatar === selectedAvatar) return;
+  avatarChangeBusy = true;
+  avatarSelectionRevision += 1;
+  renderAvatarUi();
+  try {
+    await stopAudioInput();
+    const response = await fetch('/api/avatar', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({avatar})
+    });
+    if (!response.ok) throw new Error(`模型切换失败：HTTP ${response.status}`);
+    const data = await response.json();
+    selectedAvatar = data.avatar;
+    clearLatencySession();
+    latestStatus = {...latestStatus, ...data};
+    latestWebSocketFrame = null;
+    lastPresentedAt = 0;
+    videoContext.fillStyle = '#05090d';
+    videoContext.fillRect(0, 0, videoCanvas.width, videoCanvas.height);
+    updateControl();
+  } catch (error) {
+    alert(error);
+  } finally {
+    avatarChangeBusy = false;
+    renderAvatarUi();
+    setInputUi('none');
+  }
+}
+
+document.querySelectorAll('.avatar-tab').forEach(button => {
+  button.onclick = () => selectAvatar(button.dataset.avatar);
+});
+
+function downsample(input, inputRate, outputRate) {
+  if (inputRate === outputRate) return new Float32Array(input);
+  const ratio = inputRate / outputRate;
+  const length = Math.max(1, Math.floor(input.length / ratio));
+  const result = new Float32Array(length);
+  for (let i = 0; i < length; i++) {
+    const start = Math.floor(i * ratio);
+    const end = Math.min(input.length, Math.floor((i + 1) * ratio));
+    let sum = 0;
+    for (let j = start; j < end; j++) sum += input[j];
+    result[i] = sum / Math.max(1, end - start);
+  }
+  return result;
+}
+
+function floatToInt16(input) {
+  const output = new Int16Array(input.length);
+  for (let i = 0; i < input.length; i++) {
+    const value = Math.max(-1, Math.min(1, input[i]));
+    output[i] = value < 0 ? value * 32768 : value * 32767;
+  }
+  return output;
+}
+
+function setMonitorDelay(delayMs) {
+  const slider = document.getElementById('audioDelay');
+  const bounded = Math.max(Number(slider.min), Math.min(Number(slider.max), delayMs));
+  const rounded = Math.round(bounded / 10) * 10;
+  currentMonitorDelayMs = rounded;
+  slider.value = String(rounded);
+  document.getElementById('audioDelayValue').textContent = `${rounded} ms`;
+  document.getElementById('audioDelayMode').textContent = automaticAudioDelay
+    ? inputMode === 'none'
+      ? '优先使用上一轮链路实测中位数；无样本时使用 570 ms 初始设置（不是测量值）'
+      : '本轮播放延迟已锁定；下次启动时重新自动对齐'
+    : '手动调整；点击“自动对齐”可恢复';
+  if (monitorDelayNode && audioContext) {
+    const now = audioContext.currentTime;
+    monitorDelayNode.delayTime.cancelScheduledValues(now);
+    // A manual adjustment is deliberately slow: rapid DelayNode modulation
+    // pitch-shifts the monitored audio and can produce a sharp chirp.
+    monitorDelayNode.delayTime.setTargetAtTime(rounded / 1000, now, 0.2);
+  }
+}
+
+function updateMonitorGain() {
+  if (!monitorGainNode || !audioContext) return;
+  const enabled = document.getElementById('monitorAudio').checked;
+  monitorGainNode.gain.setTargetAtTime(enabled ? 0.9 : 0, audioContext.currentTime, 0.01);
+}
+
+function setInputUi(mode) {
+  inputMode = mode;
+  document.getElementById('audioDelayMode').textContent = automaticAudioDelay
+    ? mode === 'none'
+      ? '优先使用上一轮链路实测中位数；无样本时使用 570 ms 初始设置（不是测量值）'
+      : '本轮播放延迟已锁定；下次启动时重新自动对齐'
+    : '手动调整；点击“自动对齐”可恢复';
+  const running = mode !== 'none';
+  const microphoneAvailable = Boolean(
+    window.isSecureContext && navigator.mediaDevices &&
+    navigator.mediaDevices.getUserMedia
+  );
+  const microphoneButton = document.getElementById('startMic');
+  microphoneButton.disabled = running || avatarChangeBusy || !microphoneAvailable;
+  microphoneButton.textContent = microphoneAvailable
+    ? '启动麦克风 · 实时驱动'
+    : '麦克风实时驱动 · 需要 HTTPS 或 SSH 隧道';
+  document.getElementById('microphoneAccessHint').textContent = microphoneAvailable
+    ? '当前为安全 HTTPS/localhost 页面，可以授权浏览器读取麦克风。'
+    : '校园网 HTTP 入口可观看画面并使用内置在线验证；物理麦克风需要下方的 HTTPS 入口。';
+  document.getElementById('httpsSetupHelp').hidden = microphoneAvailable;
+  const httpsEntry = document.getElementById('httpsEntry');
+  httpsEntry.href = `https://${location.hostname}:8443/`;
+  httpsEntry.textContent = `https://${location.hostname}:8443/`;
+  document.getElementById('startSample').disabled = running || avatarChangeBusy;
+  document.getElementById('stop').disabled = !running;
+  const labels = {
+    none: '当前输入：无',
+    microphone: '当前输入：麦克风（实时）',
+    dataset_audio: `当前输入：${avatarLabel()} 验证音频 → 麦克风同链路 → 在线 DeepSpeech`
+  };
+  document.getElementById('inputState').textContent = labels[mode] || labels.none;
+}
+
+async function prepareAudioPipeline(sourceType) {
+  const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  socket = new WebSocket(`${scheme}//${location.host}/ws/audio?trace=1`);
+  socket.binaryType = 'arraybuffer';
+  await new Promise((resolve, reject) => {
+    socket.onopen = resolve;
+    socket.onerror = reject;
+  });
+  audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  await audioContext.resume();
+  processor = audioContext.createScriptProcessor(4096, 1, 1);
+  clearLatencySession();
+  traceSession = `${videoClientId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  measurementAvatar = selectedAvatar;
+  monitorDelayNode = audioContext.createDelay(2.0);
+  monitorGainNode = audioContext.createGain();
+  const silentGain = audioContext.createGain();
+  silentGain.gain.value = 0;
+  processor.onaudioprocess = event => {
+    const captureMs = performance.now();
+    if (inputMode === 'none' || !socket || socket.readyState !== WebSocket.OPEN) return;
+    if (firstCaptureMs === null) firstCaptureMs = captureMs;
+    const mono = event.inputBuffer.getChannelData(0);
+    const resampled = downsample(mono, audioContext.sampleRate, 16000);
+    const pcm = floatToInt16(resampled);
+    const metadata = new TextEncoder().encode(JSON.stringify({
+      session: traceSession, seq: audioPacketSeq++, capture_ms: captureMs,
+      sent_ms: performance.now()
+    }));
+    const packet = new Uint8Array(8 + metadata.length + pcm.byteLength);
+    packet.set([84, 71, 65, 49]); // TGA1
+    new DataView(packet.buffer).setUint32(4, metadata.length, false);
+    packet.set(metadata, 8);
+    packet.set(new Uint8Array(pcm.buffer), 8 + metadata.length);
+    socket.send(packet.buffer);
+  };
+  processor.connect(silentGain);
+  silentGain.connect(audioContext.destination);
+  socket.send(JSON.stringify({command: 'reset', source: sourceType}));
+}
+
+function connectAudioSource() {
+  const captureNode = sampleGainNode || sourceNode;
+  if (sampleGainNode) sourceNode.connect(sampleGainNode);
+  captureNode.connect(processor);
+  captureNode.connect(monitorDelayNode);
+  monitorDelayNode.connect(monitorGainNode);
+  monitorGainNode.connect(audioContext.destination);
+  // Set the initial delay before audio starts, without sweeping from zero.
+  monitorDelayNode.delayTime.cancelScheduledValues(audioContext.currentTime);
+  monitorDelayNode.delayTime.setValueAtTime(
+    currentMonitorDelayMs / 1000, audioContext.currentTime
+  );
+  updateMonitorGain();
+}
+
+async function startMicrophone() {
+  await stopAudioInput();
+  mediaStream = await navigator.mediaDevices.getUserMedia({
+    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+    video: false
+  });
+  await prepareAudioPipeline('microphone');
+  sourceNode = audioContext.createMediaStreamSource(mediaStream);
+  connectAudioSource();
+  setInputUi('microphone');
+}
+
+async function startValidationAudio() {
+  await stopAudioInput();
+  await prepareAudioPipeline('dataset_audio');
+  const response = await fetch(`/media/${selectedAvatar}.wav`);
+  if (!response.ok) throw new Error(`${avatarLabel()} 音频加载失败：HTTP ${response.status}`);
+  const wavBytes = await response.arrayBuffer();
+  const audioBuffer = await audioContext.decodeAudioData(wavBytes);
+  const offset = numberOr(latestStatus.audio_start, selectedAvatar === 'may' ? 220.8 : 317.52);
+  const requestedDuration = numberOr(latestStatus.audio_duration, selectedAvatar === 'may' ? 22.12 : 31.76);
+  const duration = Math.max(0, Math.min(requestedDuration, audioBuffer.duration - offset));
+  if (duration <= 0) throw new Error('验证音频时间范围无效');
+  sourceNode = audioContext.createBufferSource();
+  sourceNode.buffer = audioBuffer;
+  sampleGainNode = audioContext.createGain();
+  const startAt = audioContext.currentTime + 0.03;
+  const fadeSeconds = Math.min(0.02, duration / 4);
+  sampleGainNode.gain.setValueAtTime(0, startAt);
+  sampleGainNode.gain.linearRampToValueAtTime(1, startAt + fadeSeconds);
+  sampleGainNode.gain.setValueAtTime(1, startAt + duration - fadeSeconds);
+  sampleGainNode.gain.linearRampToValueAtTime(0, startAt + duration);
+  // Feed the sample into the exact processor used for the real microphone.
+  // Web Audio advances it on the browser audio clock; there is no separate
+  // timer-paced PCM sender or precomputed DeepSpeech feature injection.
+  connectAudioSource();
+  sourceNode.onended = () => {
+    sampleStopTimer = setTimeout(
+      () => stopAudioInput(false),
+      currentMonitorDelayMs + 150
+    );
+  };
+  setInputUi('dataset_audio');
+  sourceNode.start(startAt, offset, duration);
+}
+
+async function stopAudioInput(stopSource = true) {
+  if (sampleStopTimer) clearTimeout(sampleStopTimer);
+  sampleStopTimer = null;
+  const oldSource = sourceNode;
+  sourceNode = null;
+  if (stopSource && oldSource && typeof oldSource.stop === 'function') {
+    oldSource.onended = null;
+    try { oldSource.stop(); } catch (_error) { /* already stopped */ }
+  }
+  if (processor) processor.disconnect();
+  if (oldSource) oldSource.disconnect();
+  if (sampleGainNode) sampleGainNode.disconnect();
+  if (monitorDelayNode) monitorDelayNode.disconnect();
+  if (monitorGainNode) monitorGainNode.disconnect();
+  if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
+  if (audioContext) await audioContext.close();
+  if (socket) socket.close();
+  processor = sampleGainNode = monitorDelayNode = monitorGainNode = null;
+  mediaStream = audioContext = socket = null;
+  setInputUi('none');
+  if (automaticAudioDelay && latestMeasuredLatencyMs !== null) setMonitorDelay(latestMeasuredLatencyMs);
+}
+
+document.getElementById('startMic').onclick = () => startMicrophone().catch(error => {
+  stopAudioInput();
+  alert(error);
+});
+document.getElementById('startSample').onclick = () => startValidationAudio().catch(error => {
+  stopAudioInput();
+  alert(error);
+});
+document.getElementById('stop').onclick = () => stopAudioInput();
+document.getElementById('monitorAudio').onchange = updateMonitorGain;
+document.getElementById('audioDelay').oninput = event => {
+  automaticAudioDelay = false;
+  setMonitorDelay(Number(event.target.value));
+};
+document.getElementById('autoDelay').onclick = () => {
+  automaticAudioDelay = true;
+  // Keep the current playback stable; the newest estimate applies to the
+  // next input after this one stops.
+  if (inputMode === 'none' && latestMeasuredLatencyMs !== null) setMonitorDelay(latestMeasuredLatencyMs);
+  else setInputUi(inputMode);
+};
+setInputUi('none');
+
+let controlTimer = null;
+const rttSamples = [];
+function updateControl() {
+  const yaw = Number(document.getElementById('yaw').value);
+  const pitch = Number(document.getElementById('pitch').value);
+  const zoom = Number(document.getElementById('zoom').value);
+  const expressionIntensity = Number(document.getElementById('expressionIntensity').value);
+  document.getElementById('yawValue').textContent = `${yaw}°`;
+  document.getElementById('pitchValue').textContent = `${pitch}°`;
+  document.getElementById('zoomValue').textContent = zoom.toFixed(2);
+  document.getElementById('expressionValue').textContent = expressionIntensity.toFixed(2);
+  clearTimeout(controlTimer);
+  controlTimer = setTimeout(() => fetch('/api/control', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({yaw, pitch, zoom, expression_intensity: expressionIntensity})
+  }), 80);
+}
+['yaw', 'pitch', 'zoom', 'expressionIntensity'].forEach(
+  id => document.getElementById(id).oninput = updateControl
+);
+
+function numberOr(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function updateLatency(data, rtt) {
+  const fresh = latestMeasurement && !document.hidden && inputMode !== 'none' &&
+    performance.now() - latestMeasurement.paintedMs < 1500 && data.state === 'ready';
+  const sample = fresh ? latestMeasurement : null;
+  const total = document.getElementById('latencyTotal');
+  total.innerHTML = `${sample ? sample.total.toFixed(1) : '--'} <small>ms</small>`;
+  total.className = `latency-total${sample && sample.total >= 850 ? ' high' : sample && sample.total >= 650 ? ' warn' : ''}`;
+  document.getElementById('latencyState').textContent = data.state !== 'ready'
+    ? `服务状态：${data.state || '未知'}`
+    : sample ? `当前实测 · 音频块 #${sample.audioSeq} / 特征 #${sample.featureId}`
+      : document.hidden ? '页面隐藏：暂停测量'
+      : inputMode === 'none' ? '请在本窗口启动音频；停止后保留统计，可导出'
+      : '等待本窗口新驱动画面的完整追踪数据';
+  const parts = {latencyContext: 'context', latencyCapture: 'prepare', latencyAsr: 'asr',
+    latencyFrame: 'featureWait', latencyRender: 'render', latencyUplink: 'transport',
+    latencyVideo: 'browser', latencyPublish: 'publishWait'};
+  for (const [id, key] of Object.entries(parts)) {
+    document.getElementById(id).textContent = sample ? `${sample[key].toFixed(1)} ms` : '--';
+  }
+  document.getElementById('latencyRtt').textContent = Number.isFinite(rtt) ? `${rtt.toFixed(1)} ms` : '--';
+  document.getElementById('latencyFirst').textContent = firstDrivenFrameMs === null
+    ? '--' : `${firstDrivenFrameMs.toFixed(1)} ms`;
+  const totals = measuredSamples.map(item => item.total);
+  const recent = totals.slice(-300);
+  document.getElementById('latencySummary').textContent = recent.length
+    ? `本轮已显示的独立特征帧 ${measuredCount} 个；最近 ${recent.length} 个：中位数 ${LatencyMetrics.percentile(recent, 0.5).toFixed(1)} ms · P95 ${LatencyMetrics.percentile(recent, 0.95).toFixed(1)} ms · 最大 ${Math.max(...recent).toFixed(1)} ms。重复渲染同一特征不重复计数；丢弃/未显示的帧不参与统计。`
+    : '尚无实测样本；不会以理论值或其他窗口的时钟填补。';
+}
+
+function clearLatencySession() {
+  traceSession = null;
+  measurementAvatar = null;
+  audioPacketSeq = 0;
+  firstCaptureMs = firstDrivenFrameMs = latestMeasurement = null;
+  measuredSamples = [];
+  measuredCount = 0;
+  lastMeasuredFeature = -1;
+  document.getElementById('exportLatency').disabled = true;
+}
+
+function recordLatency(trace, receivedMs, paintedMs) {
+  if (document.hidden || inputMode === 'none') return;
+  const sample = LatencyMetrics.measure(trace, traceSession, selectedAvatar, receivedMs, paintedMs);
+  if (!sample || sample.featureId <= lastMeasuredFeature) return;
+  lastMeasuredFeature = sample.featureId;
+  latestMeasurement = sample;
+  measuredSamples.push(sample);
+  measuredCount += 1;
+  if (measuredSamples.length > 10000) measuredSamples.shift();
+  if (firstDrivenFrameMs === null && firstCaptureMs !== null) {
+    firstDrivenFrameMs = paintedMs - firstCaptureMs;
+  }
+  latestMeasuredLatencyMs = LatencyMetrics.percentile(measuredSamples.slice(-300).map(s => s.total), 0.5);
+  document.getElementById('exportLatency').disabled = false;
+}
+
+document.getElementById('exportLatency').onclick = () => {
+  const report = {schema: 1, session: traceSession, avatar: measurementAvatar,
+    boundary: 'current feature centre input packet callback -> rAF Canvas drawImage return',
+    exclusions: 'pre-callback audio buffering, physical screen/audio output, lip-sync error',
+    network: 'combined round-trip transport/serialization/dispatch residual; not one-way delay',
+    samplePolicy: 'first visible submission per feature; dropped/hidden frames excluded; last 10000 retained',
+    capturedAt: new Date().toISOString(), firstDrivenFrameMs, measuredCount, samples: measuredSamples};
+  const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], {type: 'application/json'}));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${selectedAvatar}-latency-${Date.now()}.json`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+function formatBytes(value) {
+  let bytes = Math.max(0, numberOr(value, 0));
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let unit = 0;
+  while (bytes >= 1024 && unit < units.length - 1) {
+    bytes /= 1024;
+    unit += 1;
+  }
+  return `${bytes.toFixed(unit === 0 ? 0 : 2)} ${units[unit]}`;
+}
+
+function formatBitrate(bytesPerSecond) {
+  let bits = Math.max(0, numberOr(bytesPerSecond, 0)) * 8;
+  if (bits >= 1e6) return `${(bits / 1e6).toFixed(2)} Mbit/s`;
+  if (bits >= 1e3) return `${(bits / 1e3).toFixed(1)} kbit/s`;
+  return `${Math.round(bits)} bit/s`;
+}
+
+function updateTelemetry(data) {
+  const asr = data.asr || {};
+  const camera = data.camera || {};
+  latestStatus = data;
+  document.getElementById('uplinkTraffic').textContent =
+    `${formatBytes(data.audio_bytes)} · ${formatBitrate(data.uplink_bytes_per_second)}`;
+  document.getElementById('downlinkTraffic').textContent =
+    `${formatBytes(data.video_bytes)} · ${formatBitrate(data.downlink_bytes_per_second)}`;
+  document.getElementById('clientCounts').textContent =
+    `音频 ${numberOr(data.audio_clients, 0)} · 视频 ${numberOr(data.video_clients, 0)}`;
+  const sourceLabels = {none: '无', websocket: '外部 WebSocket', microphone: '麦克风', dataset_audio: `${avatarLabel()} 模拟麦克风 · 在线 DeepSpeech`, may: 'May 在线 DeepSpeech'};
+  document.getElementById('inputSource').textContent =
+    sourceLabels[data.input_source] || String(data.input_source || '无');
+  document.getElementById('featureMode').textContent = data.feature_mode === 'rolling_deepspeech'
+    ? '实时 DeepSpeech' : data.feature_mode === 'reference_features'
+      ? '预提取特征对照' : String(data.feature_mode || '未知');
+  document.getElementById('renderFps').textContent =
+    `${numberOr(data.render_fps, 0).toFixed(1)} / ${numberOr(data.target_fps, 0).toFixed(0)} FPS`;
+  const now = performance.now();
+  while (presentedFrameTimes.length && now - presentedFrameTimes[0] > 2000) {
+    presentedFrameTimes.shift();
+  }
+  const displayFps = presentedFrameTimes.length > 1 &&
+    now - presentedFrameTimes[presentedFrameTimes.length - 1] < 1000
+    ? 1000 * (presentedFrameTimes.length - 1) /
+      (presentedFrameTimes[presentedFrameTimes.length - 1] - presentedFrameTimes[0]) : 0;
+  document.getElementById('displayFps').textContent = `${displayFps.toFixed(1)} FPS`;
+  document.getElementById('viewerFps').textContent = `${displayFps.toFixed(1)} FPS`;
+  document.getElementById('videoTransport').textContent = videoTransport;
+  document.getElementById('videoDecodeMs').textContent = `${videoDecodeMs.toFixed(1)} ms`;
+  document.getElementById('renderCapacityFps').textContent =
+    `${numberOr(data.render_capacity_fps, 0).toFixed(1)} FPS`;
+  document.getElementById('audioFeatureFps').textContent =
+    `${numberOr(data.audio_feature_fps, 25).toFixed(0)} FPS`;
+  document.getElementById('videoFrameAge').textContent = lastCanvasSubmitMs !== null && !document.hidden
+    ? `${(performance.now() - lastCanvasSubmitMs).toFixed(1)} ms` : '--';
+  document.getElementById('featureFrameAge').textContent =
+    `${Math.round(numberOr(data.feature_queue_age_ms, 0))} ms`;
+  document.getElementById('audioRms').textContent =
+    `${numberOr(data.audio_rms, numberOr(asr.rms, 0)).toFixed(4)} / ${numberOr(data.speech_rms_threshold, 0).toFixed(4)}`;
+  let speechText = '音频未连接';
+  if (numberOr(data.audio_clients, 0) > 0) {
+    speechText = data.speech_active ? '检测到语音，正在驱动' : '已连接，等待语音';
+  }
+  document.getElementById('speechState').textContent = speechText;
+  document.getElementById('motionStrength').textContent =
+    `${Math.round(100 * numberOr(data.natural_motion_strength, 0))}%`;
+  document.getElementById('featureDelta').textContent =
+    `${numberOr(data.feature_delta, numberOr(asr.feature_delta, 0)).toFixed(4)}（σ ${numberOr(data.feature_std, numberOr(asr.feature_std, 0)).toFixed(2)}）`;
+  const featureFrames = asr.feature_frames;
+  document.getElementById('featureFrames').textContent = String(numberOr(featureFrames, 0));
+  document.getElementById('queueDepth').textContent =
+    `${numberOr(data.audio_queue, 0)} / ${numberOr(data.feature_queue, 0)}`;
+  document.getElementById('droppedFeatures').textContent = String(
+    numberOr(data.dropped_feature_frames, 0)
+  );
+  document.getElementById('driveParams').textContent =
+    `Y ${numberOr(camera.yaw, 0).toFixed(0)}° · P ${numberOr(camera.pitch, 0).toFixed(0)}° · ×${numberOr(camera.expression_intensity, 1).toFixed(2)}`;
+}
+
+async function refreshStatus() {
+  try {
+    const avatarRevision = avatarSelectionRevision;
+    const startedDuringAvatarChange = avatarChangeBusy;
+    const started = performance.now();
+    const wallStarted = Date.now();
+    const response = await fetch('/api/status');
+    const data = await response.json();
+    const currentRtt = performance.now() - started;
+    // Ignore an old status response that was in flight during a model switch.
+    if (startedDuringAvatarChange || avatarChangeBusy ||
+        avatarRevision !== avatarSelectionRevision) return;
+    const wallEnded = Date.now();
+    if (Number.isFinite(Number(data.server_time_ms))) {
+      clockOffsetSamples.push(Number(data.server_time_ms) - (wallStarted + wallEnded) / 2);
+      if (clockOffsetSamples.length > 12) clockOffsetSamples.shift();
+      const sortedOffsets = [...clockOffsetSamples].sort((a, b) => a - b);
+      serverClockOffsetMs = sortedOffsets[Math.floor(sortedOffsets.length / 2)];
+    }
+    rttSamples.push(currentRtt);
+    if (rttSamples.length > 12) rttSamples.shift();
+    const sortedRtt = [...rttSamples].sort((a, b) => a - b);
+    const medianRtt = sortedRtt[Math.floor(sortedRtt.length / 2)];
+    if (lastPresentedAt && clockOffsetSamples.length) {
+      videoFrameAgeMs = Math.max(0, Date.now() + serverClockOffsetMs - lastPresentedAt * 1000);
+    }
+    updateLatency(data, medianRtt);
+    updateTelemetry(data);
+    if (!avatarChangeBusy && (data.avatar === 'may' || data.avatar === 'macron') && data.avatar !== selectedAvatar) {
+      if (inputMode !== 'none') stopAudioInput().catch(console.error);
+      selectedAvatar = data.avatar;
+      clearLatencySession();
+      setInputUi('none');
+    }
+    renderAvatarUi();
+    const badge = document.getElementById('serviceBadge');
+    badge.textContent = data.state === 'ready' ? '服务运行中' : `服务：${data.state || '未知'}`;
+    badge.classList.toggle('offline', data.state !== 'ready');
+    document.getElementById('status').textContent = JSON.stringify(data, null, 2);
+  } catch (error) {
+    updateLatency({state: 'offline'}, NaN);
+    document.getElementById('status').textContent = String(error);
+    document.getElementById('latencyState').textContent = `状态接口异常：${error}`;
+    document.getElementById('serviceBadge').textContent = '服务未连接';
+    document.getElementById('serviceBadge').classList.add('offline');
+  }
+}
+
+const videoCanvas = document.getElementById('video');
+const videoContext = videoCanvas.getContext('2d', {alpha: false});
+
+function recordDisplayedFrame(producedAt, trace, receivedMs) {
+  const submittedMs = performance.now();
+  lastCanvasSubmitMs = submittedMs;
+  recordLatency(trace, receivedMs, submittedMs);
+  lastPresentedAt = producedAt;
+  framePaintSequence += 1;
+  if (Number.isFinite(producedAt) && producedAt > 0 && clockOffsetSamples.length) {
+    videoFrameAgeMs = Math.max(0, Date.now() + serverClockOffsetMs - producedAt * 1000);
+  }
+}
+
+function countPresentedFrames() {
+  // Several canvas draws before one screen refresh count as one visible frame.
+  if (!document.hidden && framePaintSequence !== lastCountedPaintSequence) {
+    presentedFrameTimes.push(performance.now());
+    lastCountedPaintSequence = framePaintSequence;
+  }
+  requestAnimationFrame(countPresentedFrames);
+}
+requestAnimationFrame(countPresentedFrames);
+
+function adaptVideoWindow(producedAt) {
+  if (!clockOffsetSamples.length || document.hidden || !videoSocket ||
+      videoSocket.readyState !== WebSocket.OPEN) return;
+  const age = Math.max(0, Date.now() + serverClockOffsetMs - producedAt * 1000);
+  if (age > 300) {
+    staleVideoPackets += 1;
+    freshVideoPackets = 0;
+    if (staleVideoPackets < 3 || videoWindowSize <= 1) return;
+    videoWindowSize -= 1;
+  } else if (age < 200) {
+    freshVideoPackets += 1;
+    staleVideoPackets = 0;
+    if (freshVideoPackets < 30 || videoWindowSize >= 4) return;
+    videoWindowSize += 1;
+  } else {
+    staleVideoPackets = 0;
+    freshVideoPackets = 0;
+    return;
+  }
+  staleVideoPackets = 0;
+  freshVideoPackets = 0;
+  videoSocket.send(JSON.stringify({command: 'window', credits: videoWindowSize}));
+  videoTransport = `WebSocket · ${videoWindowSize} 帧在途`;
+}
+
+async function paintLatestWebSocketFrame() {
+  if (paintingWebSocketFrame) return;
+  paintingWebSocketFrame = true;
+  try {
+    while (latestWebSocketFrame && videoSocket && videoSocket.readyState === WebSocket.OPEN) {
+      const frame = latestWebSocketFrame;
+      latestWebSocketFrame = null;
+      const started = performance.now();
+      const bitmap = await createImageBitmap(new Blob([frame.jpeg], {type: 'image/jpeg'}));
+      videoDecodeMs = performance.now() - started;
+      if (!videoSocket || videoSocket.readyState !== WebSocket.OPEN ||
+          frame.producedAt <= lastPresentedAt) {
+        bitmap.close();
+        continue;
+      }
+      // If decoding took longer than a frame interval, discard the old image.
+      if (latestWebSocketFrame && latestWebSocketFrame.producedAt > frame.producedAt) {
+        bitmap.close();
+        continue;
+      }
+      // Submit on a rendering opportunity, not arbitrarily between refreshes.
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      if (document.hidden || !videoSocket || videoSocket.readyState !== WebSocket.OPEN ||
+          frame.producedAt <= lastPresentedAt || frame.visibilityRevision !== visibilityRevision) {
+        bitmap.close();
+        continue;
+      }
+      videoContext.drawImage(bitmap, 0, 0, videoCanvas.width, videoCanvas.height);
+      recordDisplayedFrame(frame.producedAt, frame.trace, frame.receivedMs);
+      bitmap.close();
+    }
+  } catch (error) {
+    document.getElementById('videoFrameAge').textContent = `解码异常：${error}`;
+  } finally {
+    paintingWebSocketFrame = false;
+    if (latestWebSocketFrame && videoSocket && videoSocket.readyState === WebSocket.OPEN) {
+      paintLatestWebSocketFrame();
+    }
+  }
+}
+
+function connectVideoWebSocket() {
+  const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const websocket = new WebSocket(
+    `${scheme}//${location.host}/ws/video?trace=1&client=${encodeURIComponent(videoClientId)}`
+  );
+  videoSocket = websocket;
+  websocket.binaryType = 'arraybuffer';
+  websocket.onopen = () => {
+    videoWindowSize = 4;
+    staleVideoPackets = freshVideoPackets = 0;
+    videoTransport = 'WebSocket · 4 帧在途';
+    websocket.send(JSON.stringify({command: 'ready', credits: videoWindowSize, paused: document.hidden}));
+  };
+  websocket.onmessage = event => {
+    const receivedMs = performance.now();
+    if (!(event.data instanceof ArrayBuffer) || event.data.byteLength <= 16) return;
+    const view = new DataView(event.data);
+    const producedAt = view.getFloat64(4, false);
+    const metadataLength = view.getUint32(12, false);
+    if (metadataLength > 8192 || 16 + metadataLength >= event.data.byteLength) return;
+    let trace;
+    try { trace = JSON.parse(new TextDecoder().decode(event.data.slice(16, 16 + metadataLength))); }
+    catch (_error) { return; }
+    // Credit is returned as soon as the packet has arrived.  Painting keeps
+    // only the newest packet, so browser decoding cannot build a frame queue.
+    if (websocket.readyState === WebSocket.OPEN) websocket.send('{"command":"ack"}');
+    adaptVideoWindow(producedAt);
+    if (producedAt <= lastPresentedAt) return;
+    latestWebSocketFrame = {producedAt, trace, receivedMs, visibilityRevision,
+      jpeg: event.data.slice(16 + metadataLength)};
+    paintLatestWebSocketFrame();
+  };
+  websocket.onerror = () => websocket.close();
+  websocket.onclose = () => {
+    if (videoSocket !== websocket) return;
+    videoSocket = null;
+    videoTransport = 'HTTP 备用';
+    latestWebSocketFrame = null;
+    setTimeout(connectVideoWebSocket, 1500);
+  };
+}
+
+document.addEventListener('visibilitychange', () => {
+  visibilityRevision += 1;
+  latestWebSocketFrame = null;
+  if (!videoSocket || videoSocket.readyState !== WebSocket.OPEN) return;
+  videoSocket.send(JSON.stringify({command: document.hidden ? 'pause' : 'resume'}));
+});
+
+async function pullLatestVideo() {
+  while (true) {
+    if (videoSocket && videoSocket.readyState === WebSocket.OPEN) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      continue;
+    }
+    const started = performance.now();
+    const requestVisibilityRevision = visibilityRevision;
+    try {
+      const response = await fetch(`/frame.jpg?client=${encodeURIComponent(videoClientId)}`, {
+        cache: 'no-store'
+      });
+      if (response.ok) {
+        const producedAt = Number(response.headers.get('X-Frame-Produced-At'));
+        if (producedAt > lastPresentedAt && (!videoSocket || videoSocket.readyState !== WebSocket.OPEN)) {
+          const blob = await response.blob();
+          const receivedMs = performance.now();
+          const trace = JSON.parse(response.headers.get('X-Frame-Trace') || '{}');
+          const decodeStarted = performance.now();
+          const bitmap = await createImageBitmap(blob);
+          videoDecodeMs = performance.now() - decodeStarted;
+          await new Promise(resolve => requestAnimationFrame(resolve));
+          if (!document.hidden && requestVisibilityRevision === visibilityRevision &&
+              producedAt > lastPresentedAt && (!videoSocket || videoSocket.readyState !== WebSocket.OPEN)) {
+            videoContext.drawImage(bitmap, 0, 0, videoCanvas.width, videoCanvas.height);
+            recordDisplayedFrame(producedAt, trace, receivedMs);
+          }
+          bitmap.close();
+        } else {
+          await response.body.cancel();
+        }
+      }
+    } catch (error) {
+      document.getElementById('videoFrameAge').textContent = `断开：${error}`;
+    }
+    const interval = document.hidden ? 500 : 1000 / Math.max(1, numberOr(latestStatus.target_fps, 25));
+    await new Promise(resolve => setTimeout(resolve, Math.max(0, interval - (performance.now() - started))));
+  }
+}
+setInterval(refreshStatus, 500);
+refreshStatus();
+connectVideoWebSocket();
+pullLatestVideo();
+</script>
+</body>
+</html>

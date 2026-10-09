@@ -40,6 +40,7 @@ dependencies:
     - pyaudio
     - soundfile
     - configargparse
+    - aiohttp==3.8.6
 
     - lpips
     - imageio-ffmpeg

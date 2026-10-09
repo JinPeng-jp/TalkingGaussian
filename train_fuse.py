@@ -38,7 +38,11 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     opt.densify_until_iter = 0
 
     testing_iterations = [i for i in range(0, opt.iterations + 1, 2000)]
-    checkpoint_iterations = [opt.iterations]
+    saving_iterations = sorted(set(saving_iterations + [opt.iterations]))
+    if checkpoint_iterations:
+        checkpoint_iterations = sorted(set(checkpoint_iterations + [opt.iterations]))
+    else:
+        checkpoint_iterations = [opt.iterations]
 
     # vars
     bg_iter = opt.densify_until_iter
@@ -57,13 +61,24 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     gaussians.training_setup(opt)
     gaussians_mouth.training_setup(opt)
 
-    (model_params, motion_params, _, _) = torch.load(os.path.join(scene.model_path, "chkpnt_face_latest.pth"))
-    gaussians.restore(model_params, opt)
-    motion_net.load_state_dict(motion_params)
+    if checkpoint:
+        resume_state = torch.load(checkpoint)
+        if len(resume_state) != 5:
+            raise ValueError("Fuse resume checkpoints must contain five entries")
+        model_params, motion_params, model_mouth_params, motion_mouth_params, first_iter = resume_state
+        gaussians.restore(model_params, opt)
+        motion_net.load_state_dict(motion_params)
+        gaussians_mouth.restore(model_mouth_params, opt)
+        motion_net_mouth.load_state_dict(motion_mouth_params)
+        print("Resuming fuse training from iteration {}".format(first_iter))
+    else:
+        (model_params, motion_params, _, _) = torch.load(os.path.join(scene.model_path, "chkpnt_face_latest.pth"))
+        gaussians.restore(model_params, opt)
+        motion_net.load_state_dict(motion_params)
 
-    (model_params, motion_params, _, _) = torch.load(os.path.join(scene.model_path, "chkpnt_mouth_latest.pth"))
-    gaussians_mouth.restore(model_params, opt)
-    motion_net_mouth.load_state_dict(motion_params)
+        (model_params, motion_params, _, _) = torch.load(os.path.join(scene.model_path, "chkpnt_mouth_latest.pth"))
+        gaussians_mouth.restore(model_params, opt)
+        motion_net_mouth.load_state_dict(motion_params)
 
     lpips_criterion = lpips.LPIPS(net='alex').eval().cuda()
 
@@ -186,6 +201,9 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 ckpt = (gaussians.capture(), motion_net.state_dict(), gaussians_mouth.capture(), motion_net_mouth.state_dict())
                 torch.save(ckpt, scene.model_path + "/chkpnt_fuse_" + str(iteration) + ".pth")
                 torch.save(ckpt, scene.model_path + "/chkpnt_fuse_latest" + ".pth")
+                resume_ckpt = ckpt + (iteration,)
+                torch.save(resume_ckpt, scene.model_path + "/chkpnt_fuse_resume_" + str(iteration) + ".pth")
+                torch.save(resume_ckpt, scene.model_path + "/chkpnt_fuse_resume_latest" + ".pth")
 
 
             # Densification

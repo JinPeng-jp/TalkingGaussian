@@ -35,7 +35,12 @@ except ImportError:
 
 def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from):
     testing_iterations = [i for i in range(0, opt.iterations + 1, 2000)]
-    checkpoint_iterations =  saving_iterations = [i for i in range(0, opt.iterations + 1, 10000)] + [opt.iterations]
+    periodic_saves = [i for i in range(0, opt.iterations + 1, 10000)] + [opt.iterations]
+    saving_iterations = sorted(set(saving_iterations + periodic_saves))
+    if checkpoint_iterations:
+        checkpoint_iterations = sorted(set(checkpoint_iterations + [opt.iterations]))
+    else:
+        checkpoint_iterations = periodic_saves
 
     # vars
     warm_step = 3000

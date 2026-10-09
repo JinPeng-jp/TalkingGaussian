@@ -115,15 +115,17 @@ def readCamerasFromTransforms(path, transformsfile, white_background, extension=
         auds = aud_features
 
         au_info=pd.read_csv(os.path.join(path, 'au.csv'))
-        au_blink = au_info[' AU45_r'].values
-        au25 = au_info[' AU25_r'].values
+        # OpenFace releases differ in whether CSV headers contain leading spaces.
+        au_info.columns = au_info.columns.str.strip()
+        au_blink = au_info['AU45_r'].values
+        au25 = au_info['AU25_r'].values
         au25 = np.clip(au25, 0, np.percentile(au25, 95))
 
         au25_25, au25_50, au25_75, au25_100 = np.percentile(au25, 25), np.percentile(au25, 50), np.percentile(au25, 75), au25.max()
 
         au_exp = []
         for i in [1,4,5,6,7,45]:
-            _key = ' AU' + str(i).zfill(2) + '_r'
+            _key = 'AU' + str(i).zfill(2) + '_r'
             au_exp_t = au_info[_key].values
             if i == 45:
                 au_exp_t = au_exp_t.clip(0, 2)

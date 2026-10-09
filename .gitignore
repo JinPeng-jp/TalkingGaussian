@@ -18,5 +18,13 @@ diff_rasterization/dist
 tensorboard_3d
 screenshots
 
+# Machine-local HTTPS material for the campus demo.
+realtime/certs/*.key
+realtime/certs/*.crt
+
+# Local runs, latency exports, and pre-change backups.
+logs/
+realtime/backups/
+
 data/*
 !*.gitkeep

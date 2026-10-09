@@ -3,14 +3,24 @@ import glob
 import tqdm
 import json
 import argparse
+import subprocess
+import sys
 import cv2
 import numpy as np
+
+def run_ffmpeg(arguments):
+    env = os.environ.copy()
+    env.pop('LD_LIBRARY_PATH', None)
+    subprocess.run(['/usr/bin/ffmpeg', '-nostdin', '-y'] + arguments,
+                   check=True, env=env)
 
 def extract_audio(path, out_path, sample_rate=16000):
     
     print(f'[INFO] ===== extract audio from {path} to {out_path} =====')
-    cmd = f'ffmpeg -i {path} -f wav -ar {sample_rate} {out_path}'
-    os.system(cmd)
+    run_ffmpeg([
+        '-i', path, '-vn',
+        '-acodec', 'pcm_s16le', '-ac', '1', '-ar', str(sample_rate), out_path,
+    ])
     print(f'[INFO] ===== extracted audio =====')
 
 
@@ -18,10 +28,12 @@ def extract_audio_features(path, mode='wav2vec'):
 
     print(f'[INFO] ===== extract audio labels for {path} =====')
     if mode == 'wav2vec':
-        cmd = f'python nerf/asr.py --wav {path} --save_feats'
+        cmd = [sys.executable, 'nerf/asr.py', '--wav', path, '--save_feats']
     else: # deepspeech
-        cmd = f'python data_utils/deepspeech_features/extract_ds_features.py --input {path}'
-    os.system(cmd)
+        output_path = os.path.splitext(path)[0] + '_ds.npy'
+        cmd = [sys.executable, 'data_utils/deepspeech_features/extract_ds_features.py',
+               '--input', path, '--output', output_path]
+    subprocess.run(cmd, check=True)
     print(f'[INFO] ===== extracted audio labels =====')
 
 
@@ -29,16 +41,20 @@ def extract_audio_features(path, mode='wav2vec'):
 def extract_images(path, out_path, fps=25):
 
     print(f'[INFO] ===== extract images from {path} to {out_path} =====')
-    cmd = f'ffmpeg -i {path} -vf fps={fps} -qmin 1 -q:v 1 -start_number 0 {os.path.join(out_path, "%d.jpg")}'
-    os.system(cmd)
+    run_ffmpeg([
+        '-i', path, '-vf', f'fps={fps}',
+        '-qmin', '1', '-q:v', '1', '-start_number', '0', os.path.join(out_path, '%d.jpg'),
+    ])
     print(f'[INFO] ===== extracted images =====')
 
 
 def extract_semantics(ori_imgs_dir, parsing_dir):
 
     print(f'[INFO] ===== extract semantics from {ori_imgs_dir} to {parsing_dir} =====')
-    cmd = f'python data_utils/face_parsing/test.py --respath={parsing_dir} --imgpath={ori_imgs_dir}'
-    os.system(cmd)
+    subprocess.run([
+        sys.executable, 'data_utils/face_parsing/test.py',
+        f'--respath={parsing_dir}', f'--imgpath={ori_imgs_dir}',
+    ], check=True)
     print(f'[INFO] ===== extracted semantics =====')
 
 
@@ -53,12 +69,17 @@ def extract_landmarks(ori_imgs_dir):
         fa = face_alignment.FaceAlignment(face_alignment.LandmarksType.TWO_D, flip_input=False)
     image_paths = glob.glob(os.path.join(ori_imgs_dir, '*.jpg'))
     for image_path in tqdm.tqdm(image_paths):
+        landmark_path = os.path.splitext(image_path)[0] + '.lms'
+        if os.path.isfile(landmark_path) and os.path.getsize(landmark_path) > 0:
+            continue
         input = cv2.imread(image_path, cv2.IMREAD_UNCHANGED) # [H, W, 3]
         input = cv2.cvtColor(input, cv2.COLOR_BGR2RGB)
         preds = fa.get_landmarks(input)
-        if len(preds) > 0:
+        if preds is not None and len(preds) > 0:
             lands = preds[0].reshape(-1, 2)[:,:2]
-            np.savetxt(image_path.replace('jpg', 'lms'), lands, '%f')
+            np.savetxt(landmark_path, lands, '%f')
+        else:
+            print(f'[WARN] No face landmarks for {image_path}')
     del fa
     print(f'[INFO] ===== extracted face landmarks =====')
 
@@ -252,9 +273,11 @@ def face_tracking(ori_imgs_dir):
     tmp_image = cv2.imread(image_paths[0], cv2.IMREAD_UNCHANGED) # [H, W, 3]
     h, w = tmp_image.shape[:2]
 
-    cmd = f'python data_utils/face_tracking/face_tracker.py --path={ori_imgs_dir} --img_h={h} --img_w={w} --frame_num={len(image_paths)}'
-
-    os.system(cmd)
+    subprocess.run([
+        sys.executable, 'data_utils/face_tracking/face_tracker.py',
+        f'--path={ori_imgs_dir}', f'--img_h={h}', f'--img_w={w}',
+        f'--frame_num={len(image_paths)}',
+    ], check=True)
 
     print(f'[INFO] ===== finished face tracking =====')
 
@@ -402,4 +425,3 @@ if __name__ == '__main__':
     # save transforms.json
     if opt.task == -1 or opt.task == 9:
         save_transforms(base_dir, ori_imgs_dir)
-
